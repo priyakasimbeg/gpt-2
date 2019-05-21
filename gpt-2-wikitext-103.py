@@ -1,3 +1,7 @@
+# Copyright (c) 2019-present, Thomas Wolf.
+# All rights reserved. This source code is licensed under the MIT-style license found in the LICENSE file in the root directory of this source tree.
+""" A very small and self-contained gist to train a GPT-2 transformer model on wikitext-103 """
+import os
 from collections import namedtuple
 from tqdm import tqdm
 import torch
@@ -82,10 +86,10 @@ class TransformerWithLMHead(nn.Module):
 Config = namedtuple('Config',
     field_names="embed_dim, hidden_dim, num_max_positions, num_embeddings, num_heads, num_layers," 
                 "dropout, initializer_range, batch_size, lr, max_norm, n_epochs, n_warmup, device,"
-                "gradient_accumulation_steps, log_dir",
+                "gradient_accumulation_steps, log_dir, dataset_cache",
     defaults   =[410      , 2100      , 256              , 50000         , 10        , 16         ,
                  0.1    , 0.02             , 16         , 2.5e-4, 0.25, 200     , 1000    , "cuda",
-                 4                          , "./"])
+                 4                          , "./"   , "./dataset_cache_small_gist"])
 
 # Load a pre-defined tokenizer (BERT), create config and model
 tokenizer = BertTokenizer.from_pretrained('bert-base-cased', do_lower_case=False)
@@ -94,12 +98,16 @@ model = TransformerWithLMHead(args).to(args.device)
 optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
 
 # Download and tokenize wikitext-103 training dataset
-dataset_file = cached_path("https://s3.amazonaws.com/datasets.huggingface.co/wikitext-103/wiki.train.tokens")
-with open(dataset_file, "r", encoding="utf-8") as f:
-    dataset = f.readlines()
-dataset = list(tokenizer.convert_tokens_to_ids(tokenizer.tokenize(
-                line.strip(' ').replace('\n', '[SEP]').replace('<unk>', '[UNK]'))) for line in tqdm(dataset))
-dataset = torch.tensor([index for line in dataset for index in line], dtype=torch.long)
+if os.path.isfile(args.dataset_cache):
+    dataset = torch.load(args.dataset_cache)
+else:
+    dataset_file = cached_path("https://s3.amazonaws.com/datasets.huggingface.co/wikitext-103/wiki.test.tokens")
+    with open(dataset_file, "r", encoding="utf-8") as f:
+        dataset = f.readlines()
+    dataset = list(tokenizer.convert_tokens_to_ids(tokenizer.tokenize(
+                    line.strip(' ').replace('\n', '[SEP]').replace('<unk>', '[UNK]'))) for line in tqdm(dataset))
+    dataset = torch.tensor([index for line in dataset for index in line], dtype=torch.long)
+    torch.save(dataset, args.dataset_cache)
 
 # Organize the dataset in blocs of num_max_positions tokens for the transformer
 num_sequences = (dataset.size(0) // args.num_max_positions) * args.num_max_positions
