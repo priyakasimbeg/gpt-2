@@ -9,6 +9,7 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 from ignite.engine import Engine, Events
 from ignite.metrics import RunningAverage
+from ignite.handlers import ModelCheckpoint
 from ignite.contrib.handlers import CosineAnnealingScheduler, create_lr_scheduler_with_warmup, ProgressBar
 from pytorch_pretrained_bert import BertTokenizer, cached_path
 
