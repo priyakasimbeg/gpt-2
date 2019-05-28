@@ -101,7 +101,7 @@ optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
 if os.path.isfile(args.dataset_cache):
     dataset = torch.load(args.dataset_cache)
 else:
-    dataset_file = cached_path("https://s3.amazonaws.com/datasets.huggingface.co/wikitext-103/wiki.test.tokens")
+    dataset_file = cached_path("https://s3.amazonaws.com/datasets.huggingface.co/wikitext-103/wiki.train.tokens")
     with open(dataset_file, "r", encoding="utf-8") as f:
         dataset = f.readlines()
     dataset = list(tokenizer.convert_tokens_to_ids(tokenizer.tokenize(
