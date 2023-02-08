@@ -13,18 +13,27 @@ from ignite.handlers import ModelCheckpoint
 from ignite.contrib.handlers import CosineAnnealingScheduler, create_lr_scheduler_with_warmup, ProgressBar
 from pytorch_pretrained_bert import BertTokenizer, cached_path
 from torcheval.metrics.text import Perplexity
+from ignite.metrics.metric import reinit__is_reduced, sync_all_reduce
 from ignite.metrics import Metric
 
 class PerplexityIgnite(Metric):
 
-    def __init__(self, ignore_index=None, device=None):
+    def __init__(self, ignore_index=None, device='cpu', output_transform=lambda x: x):
         self.perplexity = Perplexity(ignore_index=ignore_index, device=device)
+        super(PerplexityIgnite, self).__init__(output_transform=output_transform, device=device)
 
-    def reset():
+    def __name__(self):
+        return "CustomPerplexity"
+
+    @reinit__is_reduced
+    def reset(self):
         self.perplexity.reset()
         super(PerplexityIgnite, self).reset()
 
-    def update(self, input, target):
+    @reinit__is_reduced
+    def update(self, output):
+        input=output[0].detach()
+        target=output[1].detach()
         self.perplexity.update(input, target)
 
     def compute(self):
@@ -141,10 +150,11 @@ else:
 num_sequences = (dataset.size(0) // args.num_max_positions) * args.num_max_positions
 dataset = dataset.narrow(0, 0, num_sequences).view(-1, args.num_max_positions)
 dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True)
+train_eval_loader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True)
 # Organize the dataset in blocs of num_max_positions tokens for the transformer
 num_valid_sequences = (valid_dataset.size(0) // args.num_max_positions) * args.num_max_positions
-valid_dataset = valid_dataset.narrow(0, 0, num_sequences).view(-1, args.num_max_positions)
-valid_dataloader = DataLoader(valid_dataset, batch_size=args.batch_size, shuffle=True)
+valid_dataset = valid_dataset.narrow(0, 0, num_valid_sequences).view(-1, args.num_max_positions)
+valid_loader = DataLoader(valid_dataset, batch_size=args.batch_size, shuffle=False)
 
 # Define training function
 def update(engine, batch):
@@ -174,14 +184,28 @@ def inference(engine, batch):
         shift_logits = logits[:-1]
         shift_labels = labels[1:]
     return shift_logits, shift_labels
-evaluator = Engine(inference)
+valid_evaluator = Engine(inference)
+train_evaluator = Engine(inference)
+
 
 # Attache metric to evaluator & evaluation to trainer: evaluate on valid set after each epoch
-Perplexity().attach(evaluator, "perplexity")
-@trainer.on(Events.ITERATION_COMPLETED(every=5))
+PerplexityIgnite().attach(valid_evaluator, 'perplexity')
+PerplexityIgnite().attach(train_evaluator, 'perplexity')
+@trainer.on(Events.ITERATION_COMPLETED(every=1000))
 def log_validation_results(engine):
-    evaluator.run(valid_loader)
-    print(f"Validation Epoch: {engine.state.epoch} Error rate: {evaluator.state.metrics['perplexity']}")
+    valid_evaluator.run(valid_loader, max_epochs=128, epoch_length=1)
+    train_evaluator.run(train_eval_loader, max_epochs=128, epoch_length=1)
+
+    batch_loss = engine.state.output
+    lr = optimizer.param_groups[0]['lr']
+    e = engine.state.epoch
+    n = engine.state.max_epochs
+    i = engine.state.iteration
+    v_p = valid_evaluator.state.metrics['perplexity']
+    t_p = train_evaluator.state.metrics['perplexity']
+    print(f"Epoch {e}/{n} : {i} - batch loss: {batch_loss}, train_perplexity: {t_p}, valid_perplexity: {v_p}")
+    # print(f"Perplexity: {evaluator.state.metrics['perplexity']}")
+    # # print(f"Validation Epoch: {engine.state.epoch} Error rate: {evaluator.state.metrics['perplexity']}")
 
 # Learning rate schedule: linearly warm-up to lr and then decrease the learning rate to zero with cosine
 cos_scheduler = CosineAnnealingScheduler(optimizer, 'lr', args.lr, 0.0, len(dataloader) * args.n_epochs)
