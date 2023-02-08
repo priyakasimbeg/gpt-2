@@ -12,6 +12,24 @@ from ignite.metrics import RunningAverage
 from ignite.handlers import ModelCheckpoint
 from ignite.contrib.handlers import CosineAnnealingScheduler, create_lr_scheduler_with_warmup, ProgressBar
 from pytorch_pretrained_bert import BertTokenizer, cached_path
+from torcheval.metrics.text import Perplexity
+from ignite.metrics import metric
+
+class PerplexityIgnite(Metric):
+
+    def __init__(self, ignore_index=None, device=None):
+        self.perplexity = Perplexity(ignore_index=ignore_index, device=device)
+
+    def reset():
+        self.perplexity.reset()
+        super(PerplexityIgnite, self).reset()
+
+    def update(self, input, target):
+        self.perplexity.update(input, target)
+
+    def compute(self):
+        return self.perplexity.compute()
+
 
 class Transformer(nn.Module):
     def __init__(self, embed_dim, hidden_dim, num_embeddings, num_max_positions, num_heads, num_layers, dropout):
@@ -133,9 +151,28 @@ trainer = Engine(update)
 RunningAverage(output_transform=lambda x: x).attach(trainer, "loss")
 ProgressBar(persist=True).attach(trainer, metric_names=['loss'])
 
+# Evaluation function and evaluator (evaluator output is the input of the metrics)
+def inference(engine, batch):
+    model.eval()
+    with torch.no_grad():
+        batch = batch.transpose(0, 1).contiguous().to(args.device)  # to shape [seq length, batch]
+        labels = batch
+        logits, loss = model(batch, labels=labels)
+        shift_logits = logits[:-1]
+        shift_labels = labels[1:]
+    return shift_logits, shift_labels
+evaluator = Engine(inference)
+
+# Attache metric to evaluator & evaluation to trainer: evaluate on valid set after each epoch
+Perplexity().attach(evaluator, "perplexity")
+@trainer.on(Events.ITERATION_COMPLETED(every=5))
+def log_validation_results(engine):
+    evaluator.run(valid_loader)
+    print(f"Validation Epoch: {engine.state.epoch} Error rate: {100*(1 - evaluator.state.metrics['perplexity'])
+
 # Learning rate schedule: linearly warm-up to lr and then decrease the learning rate to zero with cosine
 cos_scheduler = CosineAnnealingScheduler(optimizer, 'lr', args.lr, 0.0, len(dataloader) * args.n_epochs)
-scheduler = create_lr_scheduler_with_warmup(cos_scheduler, 0.0, args.lr, args.n_warmup)
+scheduler = create_lr_scheduler_with_warmup(cos_scheduler, 0.0, args.n_warmup, args.lr)
 trainer.add_event_handler(Events.ITERATION_STARTED, scheduler)
 
 # Save checkpoints and training config
