@@ -121,10 +121,7 @@ Config = namedtuple('Config',
                  4                          , "./"   , "./dataset_cache_small_gist_tokenized", "./dataset_cache_small_gist_valid_tokenized"])
 
 # Load a pre-defined tokenizer (BERT), create config and model
-tokenizer = BertTokenizer.from_pretrained('bert-base-cased', do_lower_case=False)
-args = Config(num_embeddings=len(tokenizer.vocab), device="cuda" if torch.cuda.is_available() else "cpu")
-model = TransformerWithLMHead(args).to(args.device)
-optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
+args = Config()
 
 if not os.path.isfile(args.dataset_cache) or not os.path.isfile(args.dataset_valid_cache):
     dataset_path = os.path.expanduser("~/init2winit/wikitext-103/gpt-2/data/wikitext-103")
@@ -144,6 +141,8 @@ else:
     torch.save(valid_dataset, args.dataset_valid_cache)
 
 args = Config(num_embeddings=len(tokenized_corpus.dictionary.word2idx.keys()), device="cuda" if torch.cuda.is_available() else "cpu")
+model = TransformerWithLMHead(args).to(args.device)
+optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
 
 # Organize the dataset in blocs of num_max_positions tokens for the transformer
 num_sequences = (dataset.size(0) // args.num_max_positions) * args.num_max_positions
