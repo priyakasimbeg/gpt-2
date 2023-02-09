@@ -15,7 +15,7 @@ from pytorch_pretrained_bert import BertTokenizer, cached_path
 from torcheval.metrics.text import Perplexity
 from ignite.metrics.metric import reinit__is_reduced, sync_all_reduce
 from ignite.metrics import Metric
-import vocab
+from vocab import Corpus
 
 class PerplexityIgnite(Metric):
 
@@ -127,7 +127,7 @@ model = TransformerWithLMHead(args).to(args.device)
 optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
 
 if not os.path.isfile(args.dataset_cache) or not os.path.isfile(args.dataset_valid_cache):
-    dataset_path = os.path.expanduser("/content/wikitext-103")
+    dataset_path = os.path.expanduser("~/init2winit/wikitext-103/gpt-2/data/wikitext-103")
     print("Training tokenizer.")
     tokenized_corpus = Corpus(dataset_path)
 
