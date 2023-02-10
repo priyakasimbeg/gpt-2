@@ -1,0 +1,6 @@
+numpy==1.21.6
+tensorflow==2.9.
+torch==1.13.0
+pytorch-pretrained-bert
+pytorch-ignite
+ipdb
