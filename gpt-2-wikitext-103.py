@@ -12,6 +12,7 @@ from ignite.metrics import RunningAverage
 from ignite.handlers import ModelCheckpoint
 from ignite.contrib.handlers import CosineAnnealingScheduler, create_lr_scheduler_with_warmup, ProgressBar
 from pytorch_pretrained_bert import BertTokenizer, cached_path
+from vocab import VOCAB_SIZE
 
 class Transformer(nn.Module):
     def __init__(self, embed_dim, hidden_dim, num_embeddings, num_max_positions, num_heads, num_layers, dropout):
@@ -135,7 +136,7 @@ ProgressBar(persist=True).attach(trainer, metric_names=['loss'])
 
 # Learning rate schedule: linearly warm-up to lr and then decrease the learning rate to zero with cosine
 cos_scheduler = CosineAnnealingScheduler(optimizer, 'lr', args.lr, 0.0, len(dataloader) * args.n_epochs)
-scheduler = create_lr_scheduler_with_warmup(cos_scheduler, 0.0, args.lr, args.n_warmup)
+scheduler = create_lr_scheduler_with_warmup(cos_scheduler, 0.0, args.n_warmup, args.lr)
 trainer.add_event_handler(Events.ITERATION_STARTED, scheduler)
 
 # Save checkpoints and training config
