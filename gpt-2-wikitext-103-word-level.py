@@ -16,9 +16,12 @@ from torcheval.metrics.text import Perplexity
 from ignite.metrics.metric import reinit__is_reduced, sync_all_reduce
 from ignite.metrics import Metric
 from vocab import Tokenizer
-import logging
 from transformer import TransformerWithLMHead
 from metrics import PerplexityIgnite
+import logging
+
+
+logging.basicConfig(filename='run001.log', level=logging.INFO)
 
 CUDA =  "cuda" if torch.cuda.is_available() else "cpu"
 CPU = "cpu"
@@ -36,17 +39,17 @@ Config = namedtuple('Config',
 args = Config()
 
 dataset_path = os.path.expanduser("~/init2winit/wikitext-103/gpt-2/data/wikitext-103")
-tokenizer = Tokenizer(dataset_path)
-if os.path.isfile(args.vocab_path):
-    logging.info("Loading vocab")
-    tokenizer.load_vocab(args.vocab_path)
-else: 
-    logging.info("Training tokenizer")
-    tokenizer.train()
-    tokenizer.save_vocab(args.vocab_path)
+# tokenizer = Tokenizer(dataset_path)
+# if os.path.isfile(args.vocab_path):
+#     logging.info("Loading vocab")
+#     tokenizer.load_vocab(args.vocab_path)
+# else: 
+#     logging.info("Training tokenizer")
+#     tokenizer.train()
+#     tokenizer.save_vocab(args.vocab_path)
 
-logging.info("Tokenizing dataset")
-tokenizer.tokenize_wikitext103()
+# logging.info("Tokenizing dataset")
+# tokenizer.tokenize_wikitext103()
 
 # Tokenize wikitext-103 training dataset
 if os.path.isfile(args.dataset_cache):
@@ -110,7 +113,7 @@ train_evaluator = Engine(inference)
 # Attache metric to evaluator & evaluation to trainer: evaluate on valid set after each epoch
 PerplexityIgnite().attach(valid_evaluator, 'perplexity')
 PerplexityIgnite().attach(train_evaluator, 'perplexity')
-@trainer.on(Events.ITERATION_COMPLETED(every=100))
+@trainer.on(Events.ITERATION_COMPLETED(every=5))
 def log_validation_results(engine):
     valid_evaluator.run(valid_loader, max_epochs=128, epoch_length=1)
     train_evaluator.run(train_eval_loader, max_epochs=128, epoch_length=1)
