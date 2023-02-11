@@ -36,17 +36,17 @@ Config = namedtuple('Config',
 args = Config()
 
 dataset_path = os.path.expanduser("data/wikitext-103")
-# tokenizer = Tokenizer(dataset_path)
-# if os.path.isfile(args.vocab_path):
-#     logging.info("Loading vocab")
-#     tokenizer.load_vocab(args.vocab_path)
-# else: 
-#     logging.info("Training tokenizer")
-#     tokenizer.train()
-#     tokenizer.save_vocab(args.vocab_path)
+tokenizer = Tokenizer(dataset_path)
+if os.path.isfile(args.vocab_path):
+    logging.info("Loading vocab")
+    tokenizer.load_vocab(args.vocab_path)
+else: 
+    logging.info("Training tokenizer")
+    tokenizer.train()
+    tokenizer.save_vocab(args.vocab_path)
 
-# logging.info("Tokenizing dataset")
-# tokenizer.tokenize_wikitext103()
+logging.info("Tokenizing dataset")
+tokenizer.tokenize_wikitext103()
 
 # Tokenize wikitext-103 training dataset
 if os.path.isfile(args.dataset_cache):
