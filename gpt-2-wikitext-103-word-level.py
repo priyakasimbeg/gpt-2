@@ -16,10 +16,10 @@ from vocab import Tokenizer
 from transformer import TransformerWithLMHead
 from metrics import PerplexityIgnite
 import logging
-
-
 logging.basicConfig(filename='run001.log', level=logging.INFO)
+from torchinfo import summary
 
+LOG_INTERVAL=1000
 CUDA =  "cuda" if torch.cuda.is_available() else "cpu"
 CPU = "cpu"
 
@@ -28,14 +28,14 @@ Config = namedtuple('Config',
                 "dropout, initializer_range, batch_size, lr, max_norm, n_epochs, n_warmup, device,"
                 "gradient_accumulation_steps, log_dir, dataset_cache, dataset_valid_cache, vocab_path",
     defaults   =[410      , 2100      , 256              , 267735         , 10        , 16         ,
-                 0.1    , 0.02             , 32         , 2.5e-4, 0.25, 200     , 1000    , CPU,
+                 0.1    , 0.02             , 16        , 2.5e-4,       0.25, 200     , 1000    , CUDA,
                  4       , "./"   , "./dataset_cache_small_gist_tokenized", "./dataset_cache_small_gist_valid_tokenized",
                  "wikitext103.vocab"])
 
 # Load a pre-defined tokenizer (BERT), create config and model
 args = Config()
 
-dataset_path = os.path.expanduser("~/init2winit/wikitext-103/gpt-2/data/wikitext-103")
+dataset_path = os.path.expanduser("data/wikitext-103")
 # tokenizer = Tokenizer(dataset_path)
 # if os.path.isfile(args.vocab_path):
 #     logging.info("Loading vocab")
@@ -52,17 +52,19 @@ dataset_path = os.path.expanduser("~/init2winit/wikitext-103/gpt-2/data/wikitext
 if os.path.isfile(args.dataset_cache):
     dataset = torch.load(args.dataset_cache)
 else:
-    dataset = tokenizer.train_data
+    dataset = torch.tensor(tokenizer.train_data, dtype=torch.long)
     torch.save(dataset, args.dataset_cache)
 if os.path.isfile(args.dataset_valid_cache):
     valid_dataset = torch.load(args.dataset_valid_cache)
 else:
-    valid_dataset = tokenizer.valid_data
+    valid_dataset = torch.tensor(tokenizer.valid_data, dtype=torch.long)
     torch.save(valid_dataset, args.dataset_valid_cache)
 
 logging.info("Making model and optimizer")
 model = TransformerWithLMHead(args).to(args.device)
 optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
+# print model dims
+summary(model, input_size=(args.batch_size, args.num_max_positions ), dtypes=[torch.long])
 
 logging.info("making data loaders")
 # Organize the dataset in blocs of num_max_positions tokens for the transformer
@@ -108,9 +110,9 @@ train_evaluator = Engine(inference)
 
 
 # Attache metric to evaluator & evaluation to trainer: evaluate on valid set after each epoch
-PerplexityIgnite().attach(valid_evaluator, 'perplexity')
-PerplexityIgnite().attach(train_evaluator, 'perplexity')
-@trainer.on(Events.ITERATION_COMPLETED(every=5))
+PerplexityIgnite(device=args.device).attach(valid_evaluator, 'perplexity')
+PerplexityIgnite(device=args.device).attach(train_evaluator, 'perplexity')
+@trainer.on(Events.ITERATION_COMPLETED(every=LOG_INTERVAL))
 def log_validation_results(engine):
     valid_evaluator.run(valid_loader, max_epochs=128, epoch_length=1)
     train_evaluator.run(train_eval_loader, max_epochs=128, epoch_length=1)
@@ -122,7 +124,7 @@ def log_validation_results(engine):
     i = engine.state.iteration
     v_p = valid_evaluator.state.metrics['perplexity']
     t_p = train_evaluator.state.metrics['perplexity']
-    logging.info(f"Epoch {e}/{n} : {i} - batch loss: {batch_loss}, train_perplexity: {t_p}, valid_perplexity: {v_p}")
+    print(f"Epoch {e}/{n} : {i} - batch loss: {batch_loss}, train_perplexity: {t_p}, valid_perplexity: {v_p}")
     # logging.info(f"Perplexity: {evaluator.state.metrics['perplexity']}")
     # # logging.info(f"Validation Epoch: {engine.state.epoch} Error rate: {evaluator.state.metrics['perplexity']}")
 

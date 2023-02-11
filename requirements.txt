@@ -4,3 +4,5 @@ torch==1.13.0
 pytorch-pretrained-bert
 pytorch-ignite
 ipdb
+torcheval
+torchinfo
