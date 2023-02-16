@@ -19,9 +19,13 @@ pip3 install -r gpt-2/requirements.txt
 ```
 
 ## Download data
-To download and extract data into gpt-2 dir run:
+To download and extract data into `gpt-2` dir run:
 ```
-cd gpt-2
-bash download_data.sh
+cd ~/gpt-2 && bash download_data.sh
 ```
 
+## Train GPT-2 on wikitext-103
+From `~/gpt-2` run:
+```
+python gpt2-wikitext-103-word-level.py
+```
