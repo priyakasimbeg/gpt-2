@@ -18,3 +18,10 @@ Install rest of requirements:
 pip3 install -r gpt-2/requirements.txt
 ```
 
+## Download data
+To download and extract data into gpt-2 dir run:
+```
+cd gpt-2
+bash download_data.sh
+```
+
