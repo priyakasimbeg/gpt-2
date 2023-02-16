@@ -5,7 +5,7 @@ Adapted from  https://gist.github.com/thomwolf/ca135416a30ea387aa20edaa9b21f0ed.
 ## Environment set up
 Make a new virtual environment. From your home directory run:
 ```
-python3 -m venv env && env/bin/activate
+python3 -m venv env && source env/bin/activate
 ```
 
 Install pytorch for gpu:
