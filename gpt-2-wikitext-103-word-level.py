@@ -29,10 +29,9 @@ from metrics import PerplexityIgnite
 _OUTPUT_DIR = flags.DEFINE_string('output_dir', None, 'output_dir')
 _DATA_DIR = flags.DEFINE_string('data_dir', 'data/wikitext-103', 'data directory')
 _WRITE_METRICS = flags.DEFINE_boolean('write_metrics', False, 'Use Tensorboard to visualize metrics')
-_RUN_NUMBER = flags.DEFINE_integer("run_number", 0, "run number")
 
 
-LOG_INTERVAL=1000
+LOG_INTERVAL=100
 CUDA =  "cuda" if torch.cuda.is_available() else "cpu"
 CPU = "cpu"
 
@@ -101,11 +100,11 @@ def main(_):
 
 
     if _OUTPUT_DIR.value:
-        save_path = os.path.join(_OUTPUT_DIR.value, f'run_{_RUN_NUMBER.value}')
+        save_path = _OUTPUT_DIR.value
     if _WRITE_METRICS.value:
         if not _OUTPUT_DIR.value:
             raise Exception('Must pass --output_dir if logging to tensorboard.')
-        writer = tensorboard.SummaryWriter(save_path)
+        writer = tensorboard.SummaryWriter(os.path.expanduser(save_path))
 
     # Define training function
     def update(engine, batch):
