@@ -27,11 +27,10 @@ from metrics import PerplexityIgnite
 
 
 _OUTPUT_DIR = flags.DEFINE_string('output_dir', None, 'output_dir')
-_DATA_DIR = flags.DEFINE_string('data_dir', None, 'data directory')
+_DATA_DIR = flags.DEFINE_string('data_dir', 'data/wikitext-103', 'data directory')
 _WRITE_METRICS = flags.DEFINE_boolean('write_metrics', False, 'Use Tensorboard to visualize metrics')
-_RUN_NUMBER = flags.DEFINE_int('run_number')
+_RUN_NUMBER = flags.DEFINE_integer("run_number", 0, "run number")
 
-# logging.basicConfig(filename='run001.log', level=logging.INFO)
 
 LOG_INTERVAL=1000
 CUDA =  "cuda" if torch.cuda.is_available() else "cpu"
@@ -52,10 +51,9 @@ args = Config()
 
 
 
-def get_data(data_dir="data/wikitext-103"):
-    dataset_path = os.path.expanduser("data/wikitext-103")
+def get_data(data_dir,):
 
-    tokenizer = Tokenizer(dataset_path)
+    tokenizer = Tokenizer(data_dir)
     if os.path.isfile(args.vocab_path):
         logging.info("Loading vocab")
         tokenizer.load_vocab(args.vocab_path)
@@ -94,7 +92,7 @@ def get_data(data_dir="data/wikitext-103"):
 
 def main(_):
     logging.info("Getting data")
-    dataloader, train_eval_loader, valid_loader = get_data("data/wikitext-103")
+    dataloader, train_eval_loader, valid_loader = get_data(_DATA_DIR.value)
 
     logging.info("Making model and optimizer")
     model = TransformerWithLMHead(args).to(args.device)
@@ -105,7 +103,7 @@ def main(_):
     if _OUTPUT_DIR.value:
         save_path = os.path.join(_OUTPUT_DIR.value, f'run_{_RUN_NUMBER.value}')
     if _WRITE_METRICS.value:
-        if not output_dir:
+        if not _OUTPUT_DIR.value:
             raise Exception('Must pass --output_dir if logging to tensorboard.')
         writer = tensorboard.SummaryWriter(save_path)
 
@@ -155,10 +153,12 @@ def main(_):
         i = engine.state.iteration
         v_p = valid_evaluator.state.metrics['perplexity']
         t_p = train_evaluator.state.metrics['perplexity']
-        print(f"Epoch {e}/{n} : {i} - batch loss: {batch_loss}, train_perplexity: {t_p}, valid_perplexity: {v_p}")
-        # logging.info(f"Perplexity: {evaluator.state.metrics['perplexity']}")
-        # # logging.info(f"Validation Epoch: {engine.state.epoch} Error rate: {evaluator.state.metrics['perplexity']}")
+        print(f"Epoch {e}/{n} : {i} - batch loss: {batch_loss}, train_perplexity: {t_p}, valid_perplexity: {v_p}") 
 
+        if _WRITE_METRICS.value:
+            writer.add_scalar('Loss/train', batch_loss, i)
+            writer.add_scalar('Perplexity/train', t_p, i)
+            writer.add_scalar('Perplexity/valid', v_p, i)
     # Learning rate schedule: linearly warm-up to lr and then decrease the learning rate to zero with cosine
     cos_scheduler = CosineAnnealingScheduler(optimizer, 'lr', args.lr, 0.0, len(dataloader) * args.n_epochs)
     scheduler = create_lr_scheduler_with_warmup(cos_scheduler, 0.0, args.n_warmup, args.lr)
