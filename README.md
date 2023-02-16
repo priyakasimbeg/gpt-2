@@ -15,6 +15,6 @@ pip3 install torch==1.13.0+cu116 -f 'https://download.pytorch.org/whl/torch_stab
 
 Install rest of requirements:
 ```
-pip3 install -r requirements.txt
+pip3 install -r gpt-2/requirements.txt
 ```
 
