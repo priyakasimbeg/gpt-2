@@ -24,7 +24,7 @@ To download and extract data into `gpt-2` dir run:
 cd ~/gpt-2 && bash download_data.sh
 ```
 
-## Train GPT-2 on wikitext-103
+## Train GPT-2 on wikitext-103 with word level tokenizer
 From `~/gpt-2` run:
 ```
 python gpt2-wikitext-103-word-level.py
