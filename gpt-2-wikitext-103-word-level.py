@@ -1,3 +1,7 @@
+"""Train script for GPT-2 on Wikitext-103.
+
+Example command:  python gpt-2-wikitext-103-word-level.py --write_metrics=True --output_dir=run001
+"""
 import os
 from absl import app
 from absl import flags
@@ -31,7 +35,7 @@ _DATA_DIR = flags.DEFINE_string('data_dir', 'data/wikitext-103', 'data directory
 _WRITE_METRICS = flags.DEFINE_boolean('write_metrics', False, 'Use Tensorboard to visualize metrics')
 
 
-LOG_INTERVAL=100
+LOG_INTERVAL=1000
 CUDA =  "cuda" if torch.cuda.is_available() else "cpu"
 CPU = "cpu"
 
@@ -39,11 +43,11 @@ Config = namedtuple('Config',
     field_names="embed_dim, hidden_dim, num_max_positions, num_embeddings, num_heads, num_layers," 
                 "dropout, initializer_range, batch_size, lr, max_norm, n_epochs, n_warmup, device,"
                 "gradient_accumulation_steps, log_dir, dataset_cache, dataset_valid_cache, vocab_path,"
-                "train_eval_num_batches, eval_num_batches", 
+                "train_eval_num_batches", 
     defaults   =[410      , 2100      , 256      , 267735         , 10        , 16         ,
-                0.1    , 0.02        , 4        , 2.5e-4,       0.25, 200     , 1000    , CUDA,
-                16       , "./"   , "./dataset_cache_small_gist_tokenized", "./dataset_cache_small_gist_valid_tokenized",
-                "wikitext103.vocab", 256, 256])
+                0.1    , 0.02        , 32        , 2.5e-4,       0.25, 200     , 1000    , CUDA,
+                1       , "./"   , "./dataset_cache_small_gist_tokenized", "./dataset_cache_small_gist_valid_tokenized",
+                "wikitext103.vocab", 256])
 
 # Load a pre-defined tokenizer (BERT), create config and model
 args = Config()
@@ -131,9 +135,7 @@ def main(_):
             batch = batch.transpose(0, 1).contiguous().to(args.device)  # to shape [seq length, batch]
             labels = batch
             logits, loss = model(batch, labels=labels)
-            shift_logits = logits[:-1]
-            shift_labels = labels[1:]
-        return shift_logits, shift_labels
+        return logits, labels
     valid_evaluator = Engine(inference)
     train_evaluator = Engine(inference)
     # Attache metric to evaluator & evaluation to trainer: evaluate on valid set after each epoch
