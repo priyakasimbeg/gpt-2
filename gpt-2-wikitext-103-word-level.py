@@ -33,28 +33,23 @@ from metrics import PerplexityIgnite
 _OUTPUT_DIR = flags.DEFINE_string('output_dir', None, 'output_dir')
 _DATA_DIR = flags.DEFINE_string('data_dir', 'data/wikitext-103', 'data directory')
 _WRITE_METRICS = flags.DEFINE_boolean('write_metrics', False, 'Use Tensorboard to visualize metrics')
-
+flags.mark_flag_as_required('output_dir')
 
 LOG_INTERVAL=1000
 CUDA =  "cuda" if torch.cuda.is_available() else "cpu"
 CPU = "cpu"
 
 Config = namedtuple('Config',
-    field_names="embed_dim, hidden_dim, num_max_positions, num_embeddings, num_heads, num_layers," 
-                "dropout, initializer_range, batch_size, lr, max_norm, n_epochs, n_warmup, device,"
-                "gradient_accumulation_steps, log_dir, dataset_cache, dataset_valid_cache, vocab_path,"
-                "train_eval_num_batches", 
-    defaults   =[410      , 2100      , 256      , 267735         , 10        , 16         ,
-                0.1    , 0.02        , 32        , 2.5e-4,       0.25, 200     , 1000    , CUDA,
-                1       , "./"   , "./dataset_cache_small_gist_tokenized", "./dataset_cache_small_gist_valid_tokenized",
+            field_names="embed_dim, hidden_dim, num_max_positions, num_embeddings, num_heads, num_layers," 
+            "dropout, initializer_range, batch_size, lr, max_norm, n_epochs, n_warmup, device,"
+            "gradient_accumulation_steps, log_dir, dataset_cache, dataset_valid_cache, vocab_path,"
+            "train_eval_num_batches", 
+            defaults   =[410      , 2100      , 256      , 267735         , 10        , 16         ,
+            0.1    , 0.02        , 32        , 2.5e-4,       0.25, 200     , 1000    , CUDA,
+            1       , "./"   , "./dataset_cache_small_gist_tokenized", "./dataset_cache_small_gist_valid_tokenized",
                 "wikitext103.vocab", 256])
 
-# Load a pre-defined tokenizer (BERT), create config and model
-args = Config()
-
-
-
-def get_data(data_dir,):
+def get_data(data_dir,  args):
 
     tokenizer = Tokenizer(data_dir)
     if os.path.isfile(args.vocab_path):
@@ -64,7 +59,6 @@ def get_data(data_dir,):
         logging.info("Training tokenizer")
         tokenizer.train()
         tokenizer.save_vocab(args.vocab_path)
-
     logging.info("Tokenizing dataset")
     tokenizer.tokenize_wikitext103()
 
@@ -94,20 +88,19 @@ def get_data(data_dir,):
 
 
 def main(_):
+    # Load a pre-defined tokenizer  create config and model
+    args = Config(log_dir=_OUTPUT_DIR.value)
+
     logging.info("Getting data")
-    dataloader, train_eval_loader, valid_loader = get_data(_DATA_DIR.value)
+    dataloader, train_eval_loader, valid_loader = get_data(_DATA_DIR.value, args)
 
     logging.info("Making model and optimizer")
     model = TransformerWithLMHead(args).to(args.device)
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
     summary(model, input_size=(args.batch_size, args.num_max_positions ), dtypes=[torch.long]) # print model dims
 
-
-    if _OUTPUT_DIR.value:
-        save_path = _OUTPUT_DIR.value
     if _WRITE_METRICS.value:
-        if not _OUTPUT_DIR.value:
-            raise Exception('Must pass --output_dir if logging to tensorboard.')
+        save_path = _OUTPUT_DIR.value
         writer = tensorboard.SummaryWriter(os.path.expanduser(save_path))
 
     # Define training function
@@ -135,7 +128,9 @@ def main(_):
             batch = batch.transpose(0, 1).contiguous().to(args.device)  # to shape [seq length, batch]
             labels = batch
             logits, loss = model(batch, labels=labels)
-        return logits, labels
+            shift_logits = logits[:-1]
+            shift_labels = labels[1:]
+        return shift_logits, shift_labels
     valid_evaluator = Engine(inference)
     train_evaluator = Engine(inference)
     # Attache metric to evaluator & evaluation to trainer: evaluate on valid set after each epoch
